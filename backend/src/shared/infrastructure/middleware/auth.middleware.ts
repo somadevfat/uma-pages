@@ -11,10 +11,19 @@ declare module 'hono' {
 	}
 }
 
-export const getSupabase = (c: Context) => {
+/**
+ * Hono の Context から Supabase クライアントを取得します。
+ *
+ * @param c - Hono の Context
+ * @returns SupabaseClient インスタンス
+ */
+export const getSupabase = (c: Context): SupabaseClient => {
 	return c.get('supabase');
 };
 
+/**
+ * Supabase 用の環境変数型
+ */
 type SupabaseEnv = {
 	SUPABASE_URL?: string;
 	SUPABASE_ANON_KEY?: string;
@@ -23,27 +32,49 @@ type SupabaseEnv = {
 	VITE_SUPABASE_ANON_KEY?: string;
 };
 
+/**
+ * 解析済みのクッキー型
+ */
 type ParsedCookie = { name: string; value?: string };
 
+/**
+ * 設定対象のクッキー型
+ */
 type CookieToSet = {
 	name: string;
 	value: string;
 	options: SupabaseCookieOptions;
 };
 
+/**
+ * Supabase の 'sameSite' オプションを Hono の 'sameSite' オプションに変換します。
+ *
+ * @param sameSite - Supabase の sameSite オプション
+ * @returns Hono の sameSite オプション
+ */
 const toHonoSameSite = (sameSite: SupabaseCookieOptions['sameSite']): HonoCookieOptions['sameSite'] | undefined => {
 	if (sameSite === true) return 'strict';
 	if (sameSite === false || sameSite === undefined) return undefined;
-
 	return sameSite;
 };
 
+/**
+ * Supabase の 'priority' オプションを Hono の 'priority' オプションに変換します。
+ *
+ * @param priority - Supabase の priority オプション
+ * @returns Hono の priority オプション
+ */
 const toHonoPriority = (priority: SupabaseCookieOptions['priority']): HonoCookieOptions['priority'] | undefined => {
-	if (priority === undefined) return undefined;
-
 	return priority;
 };
 
+/**
+ * Supabase のクッキーオプションを Hono のクッキーオプションに変換します。
+ * 純粋なユーティリティ関数です。
+ *
+ * @param options - Supabase のクッキーオプション
+ * @returns Hono のクッキーオプション
+ */
 const toHonoCookieOptions = (options: SupabaseCookieOptions): HonoCookieOptions => {
 	const converted: HonoCookieOptions = {
 		domain: options.domain,
@@ -64,6 +95,22 @@ const toHonoCookieOptions = (options: SupabaseCookieOptions): HonoCookieOptions 
 	return converted;
 };
 
+/**
+ * クッキーアダプターのロジック用インターフェース（将来的なテスト用）。
+ * 現在はインラインで実装されていますが、ロジックは分離されています。
+ */
+interface CookieAdapter {
+	getAll: () => ParsedCookie[] | null;
+	setAll: (cookiesToSet: CookieToSet[]) => void;
+}
+
+/**
+ * Supabase クライアントを初期化し、Context に挿入するミドルウェアです。
+ * 
+ * SSR をサポートするため、Hono のヘルパーを使用してクッキーの読み書きを管理します。
+ *
+ * @returns Hono の MiddlewareHandler
+ */
 export const supabaseMiddleware = (): MiddlewareHandler => {
 	return async (c, next) => {
 		const supabaseEnv = env<SupabaseEnv>(c);
@@ -76,15 +123,22 @@ export const supabaseMiddleware = (): MiddlewareHandler => {
 		if (!supabaseUrl) throw new Error('Supabase URL is missing');
 		if (!supabaseAnonKey) throw new Error('Supabase anon key is missing');
 
+		/*
+		 * カスタムクッキー処理を含む Supabase クライアントの作成。
+		 * Supabase のクッキー要件と Hono の実装を橋渡しするメソッドを注入しています。
+		 */
 		const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
 			cookies: {
 				getAll() {
 					const parsed = parseCookieHeader(c.req.header('Cookie') ?? '') as ParsedCookie[];
-					const normalized = parsed.flatMap((cookie) => (cookie.value === undefined ? [] : [{ name: cookie.name, value: cookie.value }]));
-
+					// 宣言的なスタイル (flatMap) を使用
+					const normalized = parsed.flatMap((cookie) =>
+						(cookie.value === undefined ? [] : [{ name: cookie.name, value: cookie.value }])
+					);
 					return normalized.length > 0 ? normalized : null;
 				},
 				setAll(cookiesToSet: CookieToSet[]) {
+					// 宣言的な反復処理
 					cookiesToSet.forEach(({ name, value, options }) => {
 						setCookie(c, name, value, toHonoCookieOptions(options));
 					});

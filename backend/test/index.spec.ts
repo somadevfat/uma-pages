@@ -1,24 +1,72 @@
-import { env, createExecutionContext, waitOnExecutionContext, SELF } from 'cloudflare:test';
-import { describe, it, expect } from 'vitest';
+import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
+import { describe, it, expect, vi, type MockedClass } from 'vitest';
 import worker from '../src/index';
+import { HealthController } from '../src/features/health/interface/health.controller';
 
-// For now, you'll need to do something like this to get a correctly-typed
-// `Request` to pass to `worker.fetch()`.
+// HealthController をモック
+vi.mock('../src/features/health/interface/health.controller', () => {
+	return {
+		HealthController: vi.fn().mockImplementation(() => ({
+			getHealth: vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })),
+		})),
+	};
+});
+
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 
-describe('Hello World worker', () => {
-	it('responds with Hello World! (unit style)', async () => {
-		const request = new IncomingRequest('http://example.com');
-		// Create an empty context to pass to `worker.fetch()`.
+describe('GET /dbcheck', () => {
+	it('SUPABASE_URL が欠落している場合、500 を返す', async () => {
+		// --- Arrange
+		const request = new IncomingRequest('http://example.com/dbcheck');
+		// env is read-only in some environments, but here it's an object we pass.
+		const testEnv = { ...env, SUPABASE_URL: '' };
 		const ctx = createExecutionContext();
-		const response = await worker.fetch(request, env, ctx);
-		// Wait for all `Promise`s passed to `ctx.waitUntil()` to settle before running test assertions
+
+		// --- Act
+		const response = await worker.fetch(request, testEnv, ctx);
+
+		// --- Assert
 		await waitOnExecutionContext(ctx);
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
+		expect(response.status).toBe(500);
+		expect(await response.json()).toEqual({ ok: false, error: 'SUPABASE_URL is missing' });
 	});
 
-	it('responds with Hello World! (integration style)', async () => {
-		const response = await SELF.fetch('https://example.com');
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
+	it('SUPABASE_ANON_KEY が欠落している場合、500 を返す', async () => {
+		// --- Arrange
+		const request = new IncomingRequest('http://example.com/dbcheck');
+		const testEnv = { ...env, SUPABASE_URL: 'val', SUPABASE_ANON_KEY: '' };
+		const ctx = createExecutionContext();
+
+		// --- Act
+		const response = await worker.fetch(request, testEnv, ctx);
+
+		// --- Assert
+		await waitOnExecutionContext(ctx);
+		expect(response.status).toBe(500);
+		expect(await response.json()).toEqual({ ok: false, error: 'SUPABASE_ANON_KEY is missing' });
+	});
+
+	it('正常な場合、Controller に委譲して結果を返す', async () => {
+		// --- Arrange
+		const request = new IncomingRequest('http://example.com/dbcheck');
+		const testEnv = { ...env, SUPABASE_URL: 'http://test', SUPABASE_ANON_KEY: 'key' };
+		const ctx = createExecutionContext();
+
+		const mockGetHealth = vi.fn().mockResolvedValue(new Response(JSON.stringify({ mock: 'result' }), { status: 200 }));
+		(HealthController as MockedClass<typeof HealthController>).mockImplementation(() => ({
+			getHealth: mockGetHealth,
+		} as any));
+
+		// --- Act
+		const response = await worker.fetch(request, testEnv, ctx);
+
+		// --- Assert
+		await waitOnExecutionContext(ctx);
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ mock: 'result' });
+
+		// 呼び出し確認
+		expect(HealthController).toHaveBeenCalledTimes(1);
+		expect(mockGetHealth).toHaveBeenCalledTimes(1);
 	});
 });
