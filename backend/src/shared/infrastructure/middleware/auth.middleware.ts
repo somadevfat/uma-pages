@@ -59,16 +59,6 @@ const toHonoSameSite = (sameSite: SupabaseCookieOptions['sameSite']): HonoCookie
 };
 
 /**
- * Supabase の 'priority' オプションを Hono の 'priority' オプションに変換します。
- *
- * @param priority - Supabase の priority オプション
- * @returns Hono の priority オプション
- */
-const toHonoPriority = (priority: SupabaseCookieOptions['priority']): HonoCookieOptions['priority'] | undefined => {
-	return priority;
-};
-
-/**
  * Supabase のクッキーオプションを Hono のクッキーオプションに変換します。
  * 純粋なユーティリティ関数です。
  *
@@ -85,7 +75,7 @@ const toHonoCookieOptions = (options: SupabaseCookieOptions): HonoCookieOptions 
 		secure: options.secure,
 		sameSite: toHonoSameSite(options.sameSite),
 		partitioned: options.partitioned,
-		priority: toHonoPriority(options.priority),
+		priority: options.priority,
 	};
 
 	if (converted.partitioned === true) {
@@ -94,15 +84,6 @@ const toHonoCookieOptions = (options: SupabaseCookieOptions): HonoCookieOptions 
 
 	return converted;
 };
-
-/**
- * クッキーアダプターのロジック用インターフェース（将来的なテスト用）。
- * 現在はインラインで実装されていますが、ロジックは分離されています。
- */
-interface CookieAdapter {
-	getAll: () => ParsedCookie[] | null;
-	setAll: (cookiesToSet: CookieToSet[]) => void;
-}
 
 /**
  * Supabase クライアントを初期化し、Context に挿入するミドルウェアです。
