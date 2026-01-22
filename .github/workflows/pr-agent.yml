@@ -1,0 +1,44 @@
+name: PR Agent
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  pr_agent_job:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+      issues: write
+    steps:
+      - name: PR Agent action step
+        uses: qodo-ai/pr-agent@main
+        env:
+          # 最新の gemini-3-flash-preview モデルを使用
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          config.model: "gemini/gemini-3-flash-preview"
+          config.fallback_models: '["gemini/gemini-3-flash-preview"]'
+          config.custom_model_max_tokens: 1000000
+          GOOGLE_AI_STUDIO.GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+          # ツール設定を強化
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "true"
+          github_action_config.auto_improve: "true"
+
+          # コードの各行にコメントや提案を出す設定
+          pr_reviewer.inline_code_comments: "true"
+          pr_code_suggestions.commitable_code_suggestions: "true"
+          pr_code_suggestions.num_code_suggestions: "5"
+
+          # 追記プッシュ等への反応設定
+          github_action_config.pr_actions: '["opened", "reopened", "synchronize", "ready_for_review"]'
+          pr_reviewer.enable_review_on_push: "true"
+
+          # 言語設定を強化（response_languageも指定）
+          config.language: "Japanese"
+          config.response_language: "Japanese"
+          pr_reviewer.extra_instructions: "必ず日本語でレビューを書いてください。"
+          pr_description.extra_instructions: "必ず日本語で説明を書いてください。"
