@@ -30,7 +30,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           config.model: "gemini/gemini-3-flash-preview"
           config.fallback_models: '["gemini/gemini-3-flash-preview"]'
-          config.custom_model_max_tokens: 1000000
+          config.custom_model_max_tokens: 10000000
           GOOGLE_AI_STUDIO.GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
           # ツール設定を強化
