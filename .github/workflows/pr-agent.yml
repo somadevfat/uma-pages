@@ -13,6 +13,16 @@ jobs:
       contents: write
       issues: write
     steps:
+      - name: Check secret availability
+        run: |
+          if [ -z "$GEMINI_API_KEY_DEBUG" ]; then
+            echo "GEMINI_API_KEY is NOT available as an environment variable."
+          else
+            echo "GEMINI_API_KEY is available. Length: ${#GEMINI_API_KEY_DEBUG}"
+          fi
+        env:
+          GEMINI_API_KEY_DEBUG: ${{ secrets.GEMINI_API_KEY }}
+
       - name: PR Agent action step
         uses: qodo-ai/pr-agent@main
         env:
